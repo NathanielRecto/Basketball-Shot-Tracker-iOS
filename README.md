@@ -11,7 +11,8 @@ footage recorded through the app.
 
 ## What it does
 
-- 0.5x ultra-wide camera at 1080p / 60 fps, in landscape (sideline tripod, like the research footage).
+- Camera at 1080p / 60 fps in landscape (sideline tripod, like the research footage), starting at 0.5x; pinch or
+  the 0.5x / 1x / 2x buttons zoom up to 5x (the dual-wide camera switches lenses by itself; the research used 0.5x).
 - Detector v2 (YOLOv8s) in Core ML at about **28 frames per second** on an iPhone 11 (model 35 ms; the next
   frame is letterboxed while the Neural Engine runs the current one).
 - Finds the hoop by itself: the biggest rim the detector sees (the nearest hoop) plus its net, over the last
@@ -19,6 +20,11 @@ footage recorded through the app.
 - The ported tracker and shot judge turn every detector frame into MADE / MISSED, with the reason ("through the
   hoop", "off the rim", "fell past the rim", ...) and a running count.
 - **Boxes** button: show or hide the detector boxes, hoop, tracked ball and the speed readout.
+- **Record**: saves the video (every camera frame, HEVC) and `session.json` (every frame's ball and rim boxes, the
+  hoop and when the shot judge started, reset or moved, every call, the model hash and the app's git commit).
+  **Sessions** (start screen) plays them back with the calls, stats and FG%; **Export session** shares one as a zip.
+  On a PC, `Python_Raw/scripts/import_phone_session.py <zip>` replays it through the Python code (it must make the
+  same calls) and, with `--labels`, scores it.
 
 ## Checked against the research code
 
@@ -76,7 +82,8 @@ cd ../iOS && scripts/sync_model.sh
 Then, in Ubuntu from this folder:
 
 ```bash
-xtool dev run -c release     # build, sign, install on the phone
+scripts/build.sh             # stamp the git commit, then build, sign and install (xtool dev run -c release)
+scripts/build.sh --udid ID   # another phone (`xtool devices`); run scripts/sync_model.sh --no-parity first
 cd Packages/ShotCore && swift test
 ```
 

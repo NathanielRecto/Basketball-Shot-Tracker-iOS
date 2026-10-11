@@ -14,6 +14,7 @@ final class SessionRecorder: @unchecked Sendable {
         var t: Double
         var balls: [[Double]]  // cx, cy, w, h, conf
         var rims: [[Double]]  // x1, y1, x2, y2, conf
+        var judged: Bool?  // went through the shot judge (false while the hoop was being found); nil in format /1
     }
 
     struct Shot: Codable {
@@ -26,9 +27,13 @@ final class SessionRecorder: @unchecked Sendable {
         var crossOffset: Double
     }
 
+    /// A change to the shot judge before the frame at `t`: "found" (new judge, hoop just found; judging starts on the
+    /// next frame), "reset" (new judge, same hoop), "moved" (same judge, new hoop box), or "initial" (it was already
+    /// judging when the recording started, so its earlier state is not in the recording).
     struct Hoop: Codable {
         var t: Double
         var box: [Double]
+        var kind: String?  // nil in format /1
     }
 
     struct Model: Codable {
@@ -38,7 +43,8 @@ final class SessionRecorder: @unchecked Sendable {
     }
 
     struct Log: Codable {
-        var format = "shottracker-phone-session/1"
+        var format = "shottracker-phone-session/2"
+        var app: BuildInfo?  // the app build (git commit) that recorded it, from Resources/build.json
         var video = "video.mov"
         var started: String
         var lens: String
@@ -74,7 +80,7 @@ final class SessionRecorder: @unchecked Sendable {
     private var input: AVAssetWriterInput?
     private var t0: Double?  // presentation time of the first recorded frame
     private var lastT = 0.0
-    private var lastHoop: Box?
+    private var judgeLogged = false  // a found / reset / initial entry has been logged in this recording
 
     var isRecording: Bool { lock.withLock { log != nil } }
 
@@ -92,14 +98,14 @@ final class SessionRecorder: @unchecked Sendable {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         lock.withLock {
             folder = dir
-            log = Log(started: ISO8601DateFormatter().string(from: now), lens: lens,
+            log = Log(app: BuildInfo.current, started: ISO8601DateFormatter().string(from: now), lens: lens,
                       model: Model(name: model.name, weightsSha256: model.weightsSha256, precision: model.precision),
                       conf: model.conf)
             writer = nil
             input = nil
             t0 = nil
             lastT = 0
-            lastHoop = nil
+            judgeLogged = false
         }
         return dir
     }
@@ -148,10 +154,17 @@ final class SessionRecorder: @unchecked Sendable {
                 .map { [$0.box.cx, $0.box.cy, $0.box.width, $0.box.height, $0.conf] }
             let rims = out.detections.filter { $0.label == "rim_only" }
                 .map { [$0.box.x1, $0.box.y1, $0.box.x2, $0.box.y2, $0.conf] }
-            log?.frames.append(Frame(t: t, balls: balls, rims: rims))
-            if let h = update.hoop, h != lastHoop {
-                log?.hoops.append(Hoop(t: t, box: [h.x1, h.y1, h.x2, h.y2]))
-                lastHoop = h
+            log?.frames.append(Frame(t: t, balls: balls, rims: rims, judged: update.judged))
+            if let h = update.hoop {
+                let box = [h.x1, h.y1, h.x2, h.y2]
+                if update.judged && !judgeLogged && !update.hoopEvents.contains("reset") {
+                    log?.hoops.append(Hoop(t: t, box: box, kind: "initial"))
+                    judgeLogged = true
+                }
+                for kind in update.hoopEvents {
+                    log?.hoops.append(Hoop(t: t, box: box, kind: kind))
+                    if kind != "moved" { judgeLogged = true }
+                }
             }
             for ev in update.events {
                 log?.shots.append(Shot(tRelease: ev.tRelease - t0, tApex: ev.tApex - t0, tCross: ev.tCross - t0,

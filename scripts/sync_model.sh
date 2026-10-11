@@ -26,6 +26,10 @@ cp "$coreml/$name.json" "$here/Resources/"
 echo "copied $name from $coreml"
 grep -E '"(weights_sha256|precision)"' "$here/Resources/$name.json"
 
+if [ ! -f "$here/Resources/build.json" ]; then  # scripts/build.sh writes the real stamp
+  echo '{"commit": "unknown", "dirty": true, "built": ""}' > "$here/Resources/build.json"
+fi
+
 mkdir -p "$here/Resources/Parity"
 if [ "$no_parity" = 1 ]; then
   echo "no parity check in this build (--no-parity): the app's Check button stays hidden"

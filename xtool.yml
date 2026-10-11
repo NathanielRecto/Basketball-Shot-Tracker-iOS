@@ -8,3 +8,4 @@ resources:
   - Resources/DetectorV2.mlpackage
   - Resources/DetectorV2.json
   - Resources/Parity
+  - Resources/build.json  # the git commit, written by scripts/build.sh

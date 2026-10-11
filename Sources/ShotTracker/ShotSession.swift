@@ -13,6 +13,12 @@ final class ShotSession: @unchecked Sendable {
         var ball: BallObs?
         var events: [ShotEvent]
         var hoopMoved: Bool
+        /// The frame went through the shot judge (false while the hoop is still being found).
+        var judged: Bool
+        /// What happened to the shot judge before this frame, in order: "found" (new judge, hoop just found),
+        /// "reset" (new judge, same hoop), "moved" (same judge, hoop moved). A recording logs these so the research
+        /// repo can replay the session exactly.
+        var hoopEvents: [String]
     }
 
     /// Rolling window of detector frames the hoop is measured over (~1.6-2 s at the phone's 22-27 fps).
@@ -29,6 +35,7 @@ final class ShotSession: @unchecked Sendable {
     private var pipeline: ShotPipeline?
     private var hoop: Box?
     private var ambiguity: Double?
+    private var pendingReset = false
 
     init(params: Params = .defaults) {
         self.params = params
@@ -40,11 +47,15 @@ final class ShotSession: @unchecked Sendable {
         pipeline = nil
         hoop = nil
         ambiguity = nil
+        pendingReset = false
     }
 
     /// Start counting again with the same hoop.
     func resetShots() {
-        if let hoop { pipeline = ShotPipeline(hoop: hoop, params: params) }
+        if let hoop {
+            pipeline = ShotPipeline(hoop: hoop, params: params)
+            pendingReset = true
+        }
     }
 
     func feed(_ out: Detector.Output) -> Update {
@@ -52,17 +63,22 @@ final class ShotSession: @unchecked Sendable {
         if rims.count > Self.window { rims.removeFirst() }
 
         guard let pipeline else {
+            var events: [String] = []
             if rims.count == Self.window {
                 let found = hoopFromRims(rims, minFrames: Self.lockFrames)
                 if let h = found.hoop {
                     hoop = h
                     ambiguity = found.ambiguity
                     self.pipeline = ShotPipeline(hoop: h, params: params)
+                    events.append("found")  // judging starts with the next frame
                 }
             }
-            return Update(hoop: hoop, ambiguity: ambiguity, sampled: rims.count, ball: nil, events: [], hoopMoved: false)
+            return Update(hoop: hoop, ambiguity: ambiguity, sampled: rims.count, ball: nil, events: [], hoopMoved: false,
+                          judged: false, hoopEvents: events)
         }
 
+        var events: [String] = pendingReset ? ["reset"] : []
+        pendingReset = false
         var moved = false
         let found = hoopFromRims(rims, minFrames: Self.followFrames)
         if let h = found.hoop, let current = hoop, Self.shift(from: current, to: h) > Self.moveFrac,
@@ -70,10 +86,12 @@ final class ShotSession: @unchecked Sendable {
             hoop = h
             ambiguity = found.ambiguity
             moved = true
+            events.append("moved")
         }
         let balls = out.detections.filter { $0.label == "ball" && $0.conf >= params.detector.conf }
         let r = pipeline.step(out.t, balls)
-        return Update(hoop: hoop, ambiguity: ambiguity, sampled: rims.count, ball: r.ball, events: r.events, hoopMoved: moved)
+        return Update(hoop: hoop, ambiguity: ambiguity, sampled: rims.count, ball: r.ball, events: r.events, hoopMoved: moved,
+                      judged: true, hoopEvents: events)
     }
 
     /// How far a hoop box moved, in its rim widths: the largest change of centre x, top or width.

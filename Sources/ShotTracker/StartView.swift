@@ -57,6 +57,12 @@ struct StartView: View {
             .foregroundStyle(.white)
             .padding(32)
         }
+        .overlay(alignment: .bottomTrailing) {
+            Text("build \(BuildInfo.current?.short ?? "unknown")")
+                .font(.caption2.monospaced())
+                .foregroundStyle(.white.opacity(0.4))
+                .padding(10)
+        }
         .statusBarHidden()
     }
 
