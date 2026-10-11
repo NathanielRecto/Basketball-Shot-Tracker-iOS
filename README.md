@@ -26,12 +26,30 @@ through the app. Full write-up with tables and charts: **[docs/REPORT.md](docs/R
 
 ## How it works
 
-```
-camera 1080p60 ─► letterbox 960x544 ─► detector (Core ML, Neural Engine) ─► decode + NMS ─► ball / hoop / rim boxes
-                                                                                                   │
-        MADE / MISSED + reason ◄─ shot judge ◄─ ball tracker ◄─ static filter ◄────────────────────┤ balls
-                                       ▲                                                           │ rims
-                                       └──────────── hoop (biggest rim + net, followed) ◄──────────┘
+```mermaid
+flowchart TB
+    subgraph DET["1 · Detection, every frame: 28–32 per second on an iPhone 11"]
+        direction LR
+        A["Camera<br/>1920×1080, 60 fps"] --> B["Letterbox · CPU<br/>2×2 average to 960×544<br/>1.6–1.9 ms"]
+        B --> C["YOLOv8s detector v2<br/>Core ML fp16 · Neural Engine<br/>31–35 ms"]
+        C --> D["Decode + NMS · CPU<br/>conf 0.15, IoU 0.7<br/>0.2–0.3 ms"]
+    end
+    subgraph CORE["2 · ShotCore: line-by-line Swift port of the Python code"]
+        direction LR
+        H["Hoop finder<br/>biggest rim + net,<br/>moves only between shots"]
+        F["Static filter<br/>drops balls that never move"] --> G["Ball tracker<br/>follows the ball in play"]
+        H --> G
+        G --> J["Shot judge<br/>arc fit, rim crossing,<br/>rim and net checks"]
+        H --> J
+    end
+    subgraph OUT["3 · Result, 45–62 ms after the frame"]
+        direction LR
+        UI["MADE / MISSED + reason<br/>score and FG%"]
+        REC["Record (optional)<br/>video + session.json"]
+        UI ~~~ REC
+    end
+    DET -- "ball and rim boxes" --> CORE
+    CORE --> OUT
 ```
 
 1. **Camera:** 1920 x 1080 at 60 frames per second in landscape. Each frame is shrunk to 960 x 540 with an exact 2x2
