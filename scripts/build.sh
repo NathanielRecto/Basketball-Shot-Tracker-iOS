@@ -6,7 +6,9 @@
 #   scripts/build.sh --udid <UDID>     # another phone (see `xtool devices`)
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
-g() { git -c safe.directory='*' -C "$here" "$@"; }  # the repo is on the Windows drive, owned by another user id
+# The repo is on the Windows drive (another user id) and checked out by Windows git with CRLF line endings and no
+# file modes; read it the same way, or every file looks modified.
+g() { git -c safe.directory='*' -c core.autocrlf=true -c core.filemode=false -C "$here" "$@"; }
 commit="$(g rev-parse HEAD 2>/dev/null || echo unknown)"
 dirty=false
 if [ -n "$(g status --porcelain 2>/dev/null)" ]; then dirty=true; fi

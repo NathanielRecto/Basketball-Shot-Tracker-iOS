@@ -81,6 +81,7 @@ final class SessionRecorder: @unchecked Sendable {
     private var t0: Double?  // presentation time of the first recorded frame
     private var lastT = 0.0
     private var judgeLogged = false  // a found / reset / initial entry has been logged in this recording
+    private var freshJudgePending = false  // the shot judge should restart on the recording's first frame
 
     var isRecording: Bool { lock.withLock { log != nil } }
 
@@ -106,8 +107,20 @@ final class SessionRecorder: @unchecked Sendable {
             t0 = nil
             lastT = 0
             judgeLogged = false
+            freshJudgePending = true
         }
         return dir
+    }
+
+    /// Inference queue, before feeding the shot judge: true once, on the recording's first logged frame. The caller
+    /// then restarts the judge, so the recording holds everything it ever saw and the research repo can replay it
+    /// exactly (a shot already in the air when Record was pressed is not counted).
+    func takeFreshJudge(at t: Double) -> Bool {
+        lock.withLock {
+            guard freshJudgePending, let t0, t >= t0 else { return false }
+            freshJudgePending = false
+            return true
+        }
     }
 
     /// Camera queue: every delivered camera frame goes into the video.

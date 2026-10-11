@@ -117,6 +117,7 @@ final class LiveModel: ObservableObject {
                     defer { inFlight.release() }
                     do {
                         let out = try det.infer(prepared)
+                        if recorder.takeFreshJudge(at: out.t) { session.resetShots() }
                         let update = session.feed(out)
                         recorder.log(out, update)
                         counts.detect()
