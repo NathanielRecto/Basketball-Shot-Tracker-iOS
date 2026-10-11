@@ -99,9 +99,19 @@ system's calls.
 
 ## 4. The detector: model and training
 
-**Model: YOLOv8s** (small), three classes: `ball`, `hoop` (rim + net) and `rim_only` (a rim without its net; used only
-to find the hoop). Detector v2 was fine-tuned from v1 for 12 epochs on 8,347 images (hotshot + Hooper) at 960 px,
-batch 2, 8 hours on a GTX 1660 SUPER (research repo, RESULTS §6).
+**Model: YOLOv8s** (small, 11.1 M parameters), three classes: `ball`, `hoop` (rim + net) and `rim_only` (a rim
+without its net; used only to find the hoop). It was trained in two **fine-tuning** stages (fine-tuning = taking an
+already trained model and training it further on new data, instead of starting from random weights):
+
+| Stage | Started from | Training data | Epochs | Weights kept |
+|---|---|---|---|---|
+| **Detector v1** | YOLOv8s pretrained on COCO (general objects) | hotshot, 3,023 images | 30 (early-stopping patience 10, not triggered) | best epoch: **29** |
+| **Detector v2** (used by the app) | v1's best weights (epoch 29) | hotshot + Hooper, 8,347 images, 960 px, batch 2 | 12 (patience 5, not triggered) | best epoch: **12** (the last) |
+
+An epoch is one pass over that stage's training set, so the stages do not add up to one long run: the weights in
+use went through 29 epochs on 3,023 images and then 12 on 8,347, with v2's learning-rate schedule started afresh.
+"Best epoch" is the one with the highest validation fitness (0.1 x mAP50 + 0.9 x mAP50-95); later epochs are
+discarded. v2 took 8 hours on a GTX 1660 SUPER (research repo, RESULTS §1 and §6).
 
 | Validation (880 images) | Precision | Recall | mAP50 | mAP50-95 |
 |---|---|---|---|---|

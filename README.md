@@ -74,9 +74,10 @@ and, with `--labels`, scores it against hand labels.
 
 ## Model and data
 
-- **Detector v2:** YOLOv8s fine-tuned for 12 epochs on 8,347 images (the hotshot dataset plus 5,324 gym frames from
-  Basketball Detection v6, both CC BY 4.0), validation mAP50 0.851 (ball 0.747, hoop 0.931, rim only 0.876). Converted
-  with `Python_Raw/scripts/export_coreml.py`; the weights are not in git.
+- **Detector v2:** YOLOv8s, fine-tuned in two stages: from COCO weights for 30 epochs on the hotshot dataset (v1, best
+  epoch 29), then from v1 for 12 epochs on 8,347 images (hotshot plus 5,324 gym frames from Basketball Detection v6,
+  both CC BY 4.0). Validation mAP50 0.851 (ball 0.747, hoop 0.931, rim only 0.876). Converted with
+  `Python_Raw/scripts/export_coreml.py`; the weights are not in git.
 - **Data split:** whole sessions, fixed before filming. Own footage: first gym sessions 1-4 and second gym freestyle
   sessions 5, 9-11 are **dev** (tuning); second gym sessions 6-8 (30 free throws, 30 mid-range, 30 threes) are the
   **test**, labelled blind and scored once. Every phone check below used dev data only.
